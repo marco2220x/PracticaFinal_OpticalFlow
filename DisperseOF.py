@@ -69,3 +69,91 @@ while True:
     # Combinar la imagen original con la máscara
     img = cv2.add(frame, mask)
     cv2.imshow("Optcial Flow", img)
+        # Segmentación
+
+    # Convertir imagen resultante a escala de grises
+    segmented_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Umbralizar
+    _, thresholded = cv2.threshold(segmented_img, 80, 255, cv2.THRESH_BINARY_INV)
+
+    # Filtrar ruido utilizando operaciones morfológicas
+    kernel = np.ones((8, 8), np.uint8)
+    thresholded = cv2.morphologyEx(thresholded, cv2.MORPH_OPEN, kernel)
+    segmentation = cv2.morphologyEx(thresholded, cv2.MORPH_CLOSE, kernel)
+
+    cv2.imshow("Segmentacion", segmentation)
+
+    # Encontrar contornos
+    contours, _ = cv2.findContours(segmentation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Almacenar detecciones que superan un área mínima
+    detecciones = []
+    for cont in contours:
+        area = cv2.contourArea(cont)
+        if area > 1000:
+            x, y, ancho, alto = cv2.boundingRect(cont)
+            cv2.rectangle(frame, (x, y), (x + ancho, y + alto), (255, 255, 0), 3)
+            detecciones.append([x, y, ancho, alto])
+
+    # Verificar si hay suficientes detecciones para formar clusters
+    if len(detecciones) >= 2:
+        detections_array = np.array(detecciones)
+        detections_list.append(detections_array)
+
+        silhouette_scores = []
+        max_k = min(11, len(detections_array) - 1)
+        for k in range(2, max_k):
+            kmeans = KMeans(n_clusters=k, random_state=0, n_init=10).fit(detections_array)
+            try:
+                silhouette_scores.append(silhouette_score(detections_array, kmeans.labels_))
+            except ValueError:
+                print(f"Skipping k={k} due to ValueError in silhouette_score")
+                continue
+
+        if silhouette_scores:
+            # Seleccionar el valor óptimo de k
+            optimal_k = np.argmax(silhouette_scores) + 2  # Sumar 2 ya que empezamos desde k=2
+            print(f"Optimal k: {optimal_k}")
+
+            # Aplicar K-medias con el valor óptimo de k
+            kmeans = KMeans(n_clusters=optimal_k, random_state=0, n_init=10).fit(detections_array)
+
+            # Pintar cada rectángulo perteneciente a cada cluster
+            for i, (x, y, ancho, alto) in enumerate(detecciones):
+                cluster_label = kmeans.predict([[x, y, ancho, alto]])[0]
+                color = (255, 0, 0) if cluster_label == 0 else (0, 255, 0) if cluster_label == 1 else (0, 0, 255)
+                cv2.rectangle(frame, (x, y), (x + ancho, y + alto), color, 3)
+
+            # Visualizar los resultados con clusters coloreados
+            cv2.imshow('Zone (Clustered)', frame)
+
+    k = cv2.waitKey(25) & 0xFF
+    if k == 27:
+        break
+    if k == ord("c"):
+        mask = np.zeros_like(old_frame)
+
+    # Actualizar el frame anterior y los puntos anteriores
+    old_gray = frame_gray.copy()
+    p0 = good_new.reshape(-1, 1, 2)
+
+# Aplicar K-medias y evaluar con el puntaje de la silueta
+detections_array = np.vstack(detections_list)
+silhouette_scores = []
+
+# Probar diferentes valores de k
+for k in range(2, 11):
+    kmeans = KMeans(n_clusters=k, random_state=0, n_init=10).fit(detections_array)
+    silhouette_scores.append(silhouette_score(detections_array, kmeans.labels_))
+
+# Visualizar el método del codo
+plt.plot(range(2, 11), silhouette_scores, marker='o')
+plt.xlabel('Número de clusters (k)')
+plt.ylabel('Silhouette Score')
+plt.title('Método del Codo para Determinar k')
+plt.show()
+
+# Liberar los recursos de la captura de video
+cap.release()
+cv2.destroyAllWindows()
