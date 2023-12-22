@@ -95,13 +95,18 @@ Las Figuras representan la segmentación del vídeo después de aplicar el flujo
     <td align="center">
       <img src="ReadmeImages/Segmentacion.png" alt="Resultado 1" width="400"/>
     </td>
+    <td align="center">
+      <img src="ReadmeImages/Segmentacion2.png" alt="Resultado 1" width="400"/>
+    </td>
     
   </tr>
   <tr>
     <td align="center">
-      Segmentación
+      Segmentación con el flujo óptico denso
     </td>
-    
+    <td align="center">
+      Segmentación con el flujo óptico disperso
+    </td>
   </tr>
 </table>
 
